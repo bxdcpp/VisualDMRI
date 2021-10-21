@@ -1,12 +1,17 @@
 project(VisualDMRITesting)
 
+
+#
+#VTK
+#
+include(${VTK_USE_FILE})
+
+
 INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/Libs
-  ${CMAKE_SOURCE_DIR}/Libs/vtkDMRI
 )
-
+message(  ${CMAKE_CURRENT_BINARY_DIR}/Libs/vtkDMRI  ${CMAKE_SOURCE_DIR}/Libs/vtkDMRI )
 set(header_files
 )
 
@@ -30,6 +35,7 @@ add_executable(${PROJECT_NAME} WIN32
 #Set_Target_Properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup")
 
 target_link_libraries(${PROJECT_NAME}
+    vtkTeem
     vtkDMRI
 )
 
