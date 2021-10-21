@@ -64,11 +64,13 @@ set_source_files_properties(
 # --------------------------------------------------------------------------
 # Include dirs
 # --------------------------------------------------------------------------
-set(include_dirs
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
-  )
-include_directories(BEFORE ${include_dirs} ${vtkTeem_INCLUDE_DIRS})
+# set(include_dirs
+#   ${CMAKE_CURRENT_SOURCE_DIR}
+#   ${CMAKE_CURRENT_BINARY_DIR}
+#   )
+
+#include_directories(BEFORE ${include_dirs} ${vtkTeem_INCLUDE_DIRS})
+
 
 # --------------------------------------------------------------------------
 # Build library
@@ -79,12 +81,30 @@ set(srcs ${vtkDMRI_SRCS})
 
 add_library(${lib_name} ${srcs})
 
+
+
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+    $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${vtkTeem_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+
+    PRIVATE
+    
+
+    )
+
+
 set(libs
   vtkTeem
   ${Teem_LIBRARIES}
   ${VTK_LIBRARIES}
   )
 target_link_libraries(${lib_name} ${libs})
+
+
+
 
 set_target_properties(${lib_name} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${Slicer_QTLOADABLEMODULES_BIN_DIR}"
@@ -114,6 +134,13 @@ if(NOT DEFINED ${lib_name}_EXPORT_FILE)
   set(${lib_name}_EXPORT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${lib_name}Targets.cmake)
 endif()
 export(TARGETS ${lib_name} APPEND FILE ${${lib_name}_EXPORT_FILE})
+
+
+# export(
+#         TARGETS ${PROJECT_NAME}
+#         FILE ${CMAKE_BINARY_DIR}/${PROJECT_NAME}Targets.cmake
+#     )
+
 
 # --------------------------------------------------------------------------
 # Python Wrapping

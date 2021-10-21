@@ -83,11 +83,12 @@ set(vtkTeem_SRCS
 # --------------------------------------------------------------------------
 # Include dirs
 # --------------------------------------------------------------------------
-set(include_dirs
-  ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
-  )
-include_directories(BEFORE ${include_dirs})
+#set(include_dirs
+#  ${CMAKE_CURRENT_SOURCE_DIR}
+#  ${CMAKE_CURRENT_BINARY_DIR}
+#  )
+#include_directories(BEFORE ${include_dirs})
+
 
 # --------------------------------------------------------------------------
 # Build library
@@ -104,6 +105,17 @@ set(libs
   ${VTK_LIBRARIES}
   )
 target_link_libraries(${lib_name} ${libs})
+
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+    $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${Teem_INCLUDE_DIRS}>
+    PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    )
+
+
 
 # Apply user-defined properties to the library target.
 if(Slicer_LIBRARY_PROPERTIES)
