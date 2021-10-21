@@ -8,13 +8,9 @@ set(ITK_DIR ${CMAKE_SOURCE_DIR}/../slicer-build/ITK-build)
 set(Teem_SRC T:/Slicer-build/teem)
 set(Teem_DIR T:/Slicer-build/teem-build)
 
-option(BUILD_VisualNeurosurgery "Build VisualNeurosurgery" OFF)
-
-
 set(CMAKE_BUILD_TYPE Debug CACHE STRING "Set the type of build.")
 set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE STRING "" FORCE)
 option(BUILD_SHARED_LIBS "Build the shared library" ON)
-option(VTK_WRAP_PYTHON "VTK WRAP PYTHON" ON)
 option(BUILD_TESTING "Test the project" OFF)
 set_property (GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -36,17 +32,16 @@ endif(WIN32)
 
 # set libs
 set(VISUAL_LIBS 
-  vtkDMRI
   vtkTeem
+  vtkDMRI
 )
 
 
 # set apps
-set(VISUAL_APPS )
+set(VISUAL_APPS 
+VisualDMRITesting
+)
 
-if(BUILD_VisualNeurosurgery)
-  set(VISUAL_APPS VisualNeurosurgery ${VISUAL_APPS} )
-endif()
 
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
