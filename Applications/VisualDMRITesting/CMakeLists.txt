@@ -1,6 +1,5 @@
 project(VisualDMRITesting)
 
-
 #
 #VTK
 #
@@ -39,3 +38,37 @@ target_link_libraries(${PROJECT_NAME}
     vtkDMRI
 )
 
+# --------------------------------------------------------------------------
+# Folder
+# --------------------------------------------------------------------------
+if(NOT DEFINED ${PROJECT_NAME}_FOLDER)
+  set(${PROJECT_NAME}_FOLDER "App")
+endif()
+if(NOT "${${PROJECT_NAME}_FOLDER}" STREQUAL "")
+  set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER ${${PROJECT_NAME}_FOLDER})
+endif()
+
+
+# --------------------------------------------------------------------------
+# Export target
+# --------------------------------------------------------------------------
+if(NOT DEFINED ${PROJECT_NAME}_EXPORT_FILE)
+  set(${PROJECT_NAME}_EXPORT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake)
+endif()
+#export(TARGETS ${lib_name} APPEND FILE ${${PROJECT_NAME}_EXPORT_FILE})
+
+# --------------------------------------------------------------------------
+# Install library
+# --------------------------------------------------------------------------
+if(NOT DEFINED ${PROJECT_NAME}_INSTALL_BIN_DIR)
+  set(${PROJECT_NAME}_INSTALL_BIN_DIR bin)
+endif()
+if(NOT DEFINED ${PROJECT_NAME}_INSTALL_LIB_DIR)
+  set(${PROJECT_NAME}_INSTALL_LIB_DIR lib/${PROJECT_NAME})
+endif()
+
+install(TARGETS ${PROJECT_NAME}
+  RUNTIME DESTINATION ${${PROJECT_NAME}_INSTALL_BIN_DIR} COMPONENT RuntimeLibraries
+  LIBRARY DESTINATION ${${PROJECT_NAME}_INSTALL_LIB_DIR} COMPONENT RuntimeLibraries
+  ARCHIVE DESTINATION ${${PROJECT_NAME}_INSTALL_LIB_DIR} COMPONENT Development
+  )

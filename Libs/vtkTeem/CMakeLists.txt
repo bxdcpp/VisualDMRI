@@ -99,7 +99,7 @@ set(srcs ${vtkTeem_SRCS})
 add_library(${lib_name} ${srcs})
 
 set(libs
-  itkvnl
+  #itkvnl
   ITKCommon
   ${Teem_LIBRARIES}
   ${VTK_LIBRARIES}
@@ -118,9 +118,9 @@ target_include_directories(${PROJECT_NAME}
 
 
 # Apply user-defined properties to the library target.
-if(Slicer_LIBRARY_PROPERTIES)
-  set_target_properties(${lib_name} PROPERTIES ${Slicer_LIBRARY_PROPERTIES})
-endif()
+#if(Slicer_LIBRARY_PROPERTIES)
+#  set_target_properties(${lib_name} PROPERTIES ${Slicer_LIBRARY_PROPERTIES})
+#endif()
 
 # --------------------------------------------------------------------------
 # Folder
@@ -138,7 +138,8 @@ endif()
 if(NOT DEFINED ${PROJECT_NAME}_EXPORT_FILE)
   set(${PROJECT_NAME}_EXPORT_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake)
 endif()
-export(TARGETS ${lib_name} APPEND FILE ${${PROJECT_NAME}_EXPORT_FILE})
+#export(TARGETS ${lib_name} APPEND FILE ${${PROJECT_NAME}_EXPORT_FILE})
+export(TARGETS ${lib_name} FILE ${${PROJECT_NAME}_EXPORT_FILE})
 
 # --------------------------------------------------------------------------
 # Install library
