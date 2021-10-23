@@ -39,7 +39,7 @@ set(VISUAL_LIBS
 
 # set apps
 set(VISUAL_APPS 
-VisualDMRITesting
+	VisualDMRITesting
 )
 
 
@@ -50,14 +50,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
 # add libs directory
 foreach(lib ${VISUAL_LIBS})
-  set(libExportStr "VISUAL_${lib}_EXPORT")
-  string(TOUPPER ${libExportStr} MY_LIBRARY_EXPORT_DIRECTIVE)
-  set(MY_EXPORT_HEADER_PREFIX ${lib})
-  string(TOUPPER ${lib} MY_LIBNAME)
-  configure_file(
-    ${CMAKE_SOURCE_DIR}/Libs/visualSDKExport.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/Libs/${lib}/${lib}Export.h
-    )
   add_subdirectory(Libs/${lib})
 endforeach()
 
