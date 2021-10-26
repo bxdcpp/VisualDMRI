@@ -3,7 +3,10 @@ project(VisualDMRITesting)
 #
 #VTK
 #
-include(${VTK_USE_FILE})
+if(${VTK_VERSION} VERSION_LESS "8.90.0")
+  include(${VTK_USE_FILE})
+endif()
+
 
 
 INCLUDE_DIRECTORIES(
@@ -31,7 +34,7 @@ add_executable(${PROJECT_NAME} WIN32
 # endif()
 
 #Set_Target_Properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_RELEASE "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
-#Set_Target_Properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup")
+Set_Target_Properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup")
 
 target_link_libraries(${PROJECT_NAME}
     vtkTeem
