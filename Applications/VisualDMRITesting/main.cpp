@@ -17,6 +17,8 @@
 #include <vtkTransformPolyDataFilter.h>
 #include <vtkTransformFilter.h>
 #include <vtkUnstructuredGridWriter.h>
+#include <vtkLine.h>
+#include <vtkPolyLine.h>
 
 #include <iostream>
 #include <vector>
@@ -94,9 +96,6 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	seed->UseVtkHyperStreamlinePoints();
 
 	//
-	seed->UseVtkHyperStreamlinePoints();
-
-	//
 	vtkNew<vtkHyperStreamlineDTMRI> streamer;
 	seed->SetVtkHyperStreamlinePointsSettings(streamer.GetPointer());
 	seed->SetMinimumPathLength(minPathLength);
@@ -113,7 +112,10 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 
 	inputTensorField->GetPointData()->SetScalars(imgData->GetPointData()->GetScalars());
 
-	std::array<double, 3> points{ -1.160122164827107,-29.925899726775967,60.27479726775956 };
+	//std::array<double, 3> points{ -1.160122164827107,-29.925899726775967,60.27479726775956 };
+	//std::array<double, 3> points{ -12.873638961089242, -31.32079998433062,	73.2644539595872 };
+	std::array<double, 3> points{ -16.11382170952004,-19.05866524362014,44.88020394634446 };
+
 	//std::array<double, 3> points{ 0.39,30.21,59.68 };
 	std::vector<std::array<double, 3>> sPoints;
 	sPoints.push_back(points);
@@ -122,6 +124,7 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	//6. Extract PolyData in RAS
 	vtkSmartPointer<vtkPolyData> outFibers = vtkSmartPointer<vtkPolyData>::New();
 	seed->TransformStreamlinesToRASAndAppendToPolyData(outFibers.GetPointer());
+	seed->UpdateAllHyperStreamlineSettings();
 
 	
 
@@ -138,15 +141,16 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	
 	vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
 	//vtkSmartPointer<vtkUnstructuredGridWriter> writer = vtkSmartPointer<vtkUnstructuredGridWriter>::New();
-	std::string fiberFileName = "W:/scene/fiber.vtk";
+	std::string fiberFileName = "W:/scene/fiber_ASCII.vtk";
 	writer->SetFileName(fiberFileName.c_str());
 #if VTK_MAJOR_VERSION >= 9
 	// version 5.1 is not compatible with earlier Slicer versions and most other software
 	writer->SetFileVersion(42);
 #endif
-	writer->SetFileType( VTK_BINARY);
+	//writer->SetFileType( VTK_BINARY);
+	writer->SetFileType(VTK_ASCII);
 	
-	writer->SetInputData(vtkPointSet::SafeDownCast(outFibers.Get()));
+	writer->SetInputData(outFibers.GetPointer());
 	std::string header = std::string("3D Slicer output. ") + coordinateSytemSpecification;
 	writer->SetHeader(header.c_str());
 	writer->Write();

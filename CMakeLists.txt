@@ -1,10 +1,15 @@
 cmake_minimum_required (VERSION 3.14.0)
 project(VisualDMRI VERSION 6.0.0)
 
-set(VTK_SRC ${CMAKE_SOURCE_DIR}/../slicer-build/VTK)
-set(VTK_DIR ${CMAKE_SOURCE_DIR}/../slicer-build/VTK-build)
-set(ITK_SRC ${CMAKE_SOURCE_DIR}/../slicer-build/ITK)
-set(ITK_DIR ${CMAKE_SOURCE_DIR}/../slicer-build/ITK-build)
+# set(VTK_SRC ${CMAKE_SOURCE_DIR}/../slicer-build/VTK)
+# set(VTK_DIR ${CMAKE_SOURCE_DIR}/../slicer-build/VTK-build)
+# set(ITK_SRC ${CMAKE_SOURCE_DIR}/../slicer-build/ITK)
+# set(ITK_DIR ${CMAKE_SOURCE_DIR}/../slicer-build/ITK-build)
+
+set(VTK_SRC  T:/Slicer-build/VTK)
+set(VTK_DIR  T:/Slicer-build/VTK-build)
+set(ITK_SRC  T:/Slicer-build/ITK)
+set(ITK_DIR  T:/Slicer-build/ITK-build)
 set(Teem_SRC T:/Slicer-build/teem)
 set(Teem_DIR T:/Slicer-build/teem-build)
 
