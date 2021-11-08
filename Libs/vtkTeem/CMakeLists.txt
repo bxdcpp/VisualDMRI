@@ -19,7 +19,9 @@ endif()
 # VTK
 #
 #find_package(VTK REQUIRED)
-include(${VTK_USE_FILE})
+if(${VTK_VERSION} VERSION_LESS "8.90.0")
+  include(${VTK_USE_FILE})
+endif()
 
 #
 # ITK
@@ -111,8 +113,10 @@ target_include_directories(${PROJECT_NAME}
     $<INSTALL_INTERFACE:include/${PROJECT_NAME}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${Teem_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${VTK_INCLUDE_DIRS}> 
     PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    
     )
 
 

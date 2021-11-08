@@ -31,7 +31,10 @@ include(${Teem_USE_FILE})
 #
 #VTK
 #
-include(${VTK_USE_FILE})
+if(${VTK_VERSION} VERSION_LESS "8.90.0")
+  include(${VTK_USE_FILE})
+endif()
+
 
 
 # --------------------------------------------------------------------------
@@ -91,10 +94,11 @@ target_include_directories(${PROJECT_NAME}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 
     PRIVATE
-    
-
+    $<BUILD_INTERFACE:${VTK_INCLUDE_DIRS}>
+ 
     )
 
+message(Status ${CMAKE_CURRENT_BINARY_DIR})
 set(libs
   vtkTeem
   ${Teem_LIBRARIES}
