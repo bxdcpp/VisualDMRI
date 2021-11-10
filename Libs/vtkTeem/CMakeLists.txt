@@ -129,11 +129,11 @@ target_include_directories(${PROJECT_NAME}
 # --------------------------------------------------------------------------
 # Folder
 # --------------------------------------------------------------------------
-if(NOT DEFINED ${PROJECT_NAME}_FOLDER)
-  set(${PROJECT_NAME}_FOLDER ${PROJECT_NAME})
+if(NOT DEFINED ${lib_name}_FOLDER)
+  set(${lib_name}_FOLDER "Libs")
 endif()
-if(NOT "${${PROJECT_NAME}_FOLDER}" STREQUAL "")
-  set_target_properties(${lib_name} PROPERTIES FOLDER ${${PROJECT_NAME}_FOLDER})
+if(NOT "${${lib_name}_FOLDER}" STREQUAL "")
+  set_target_properties(${lib_name} PROPERTIES FOLDER ${${lib_name}_FOLDER})
 endif()
 
 # --------------------------------------------------------------------------
