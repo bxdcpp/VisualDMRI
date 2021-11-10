@@ -22,6 +22,7 @@ set_property (GLOBAL PROPERTY USE_FOLDERS ON)
 
 find_package(VTK REQUIRED)
 find_package(ITK REQUIRED)
+include(${ITK_USE_FILE})
 
 
 set(CMAKE_MODULE_PATH
@@ -39,12 +40,15 @@ endif(WIN32)
 set(VISUAL_LIBS 
   vtkTeem
   vtkDMRI
+  DWIConvert
 )
-
 
 # set apps
 set(VISUAL_APPS 
 	VisualDMRITesting
+	DMRIDisplay
+	DWIToDTIVolume
+	DWIToMaskVolume
 )
 
 

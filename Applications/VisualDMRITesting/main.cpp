@@ -1,4 +1,6 @@
 #include "vtkSeedTracts.h"
+#include "vtkTRKReader.h"
+#include "vtkTRKWriter.h"
 
 //VTK include
 #include <vtkNrrdReader.h>
@@ -19,6 +21,7 @@
 #include <vtkUnstructuredGridWriter.h>
 #include <vtkLine.h>
 #include <vtkPolyLine.h>
+#include <vtkDemandDrivenPipeline.h>
 
 #include <iostream>
 #include <vector>
@@ -28,13 +31,13 @@ void ConvertBetweenRASAndLPS(vtkPointSet* inputMesh, vtkPointSet* outputMesh);
 void ReadNRRD(std::string fileName);
 void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double, 3>>& seedPoint, double regionSize, double sampleStep);
 void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
-    double stoppingValue,
-    double stoppingCurvature,
-    double integrationStepLength,
-    double minPathLength,
-    double regionSize, double sampleStep,
-    int maxNumberOfSeeds,
-    int seedSelectedFiducials,double spa[3], vtkMatrix4x4* RASToIJK,vtkImageData* imgData)
+	double stoppingValue,
+	double stoppingCurvature,
+	double integrationStepLength,
+	double minPathLength,
+	double regionSize, double sampleStep,
+	int maxNumberOfSeeds,
+	int seedSelectedFiducials, double spa[3], vtkMatrix4x4* RASToIJK, vtkImageData* imgData)
 {
 	// 设置 world to tensorIJK
 	vtkNew<vtkMatrix4x4> mat;
@@ -126,7 +129,7 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	seed->TransformStreamlinesToRASAndAppendToPolyData(outFibers.GetPointer());
 	seed->UpdateAllHyperStreamlineSettings();
 
-	
+
 
 	// We explicitly write the coordinate system into the file header.
 	const std::string coordinateSystemTag = "SPACE"; // following NRRD naming convention
@@ -138,18 +141,19 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 
 	//vtkSmartPointer<vtkPointSet> meshToWrite = ;
 	//vtkSmartPointer<vtkPLYWriter> writer = vtkSmartPointer<vtkPLYWriter>::New();
-	
+
 	vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
 	//vtkSmartPointer<vtkUnstructuredGridWriter> writer = vtkSmartPointer<vtkUnstructuredGridWriter>::New();
-	std::string fiberFileName = "W:/scene/fiber_ASCII.vtk";
+	//std::string fiberFileName = "T:/scene/fiber_ASCII.vtk";
+	std::string fiberFileName = "C:/Users/Bxd/Desktop/testhead/fiber_one.vtk";
 	writer->SetFileName(fiberFileName.c_str());
 #if VTK_MAJOR_VERSION >= 9
 	// version 5.1 is not compatible with earlier Slicer versions and most other software
 	writer->SetFileVersion(42);
 #endif
-	//writer->SetFileType( VTK_BINARY);
-	writer->SetFileType(VTK_ASCII);
-	
+	writer->SetFileType( VTK_BINARY);
+	//writer->SetFileType(VTK_ASCII);
+
 	writer->SetInputData(outFibers.GetPointer());
 	std::string header = std::string("3D Slicer output. ") + coordinateSytemSpecification;
 	writer->SetHeader(header.c_str());
@@ -158,7 +162,7 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 
 }
 
-void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double, 3>>& seedPoint,double regionSize,double sampleStep) 
+void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double, 3>>& seedPoint, double regionSize, double sampleStep)
 {
 	//seedPoint 
 	//x = -1.1601221648271069,y = -29.925899726775967,z = 60.274797267759560
@@ -186,10 +190,13 @@ void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double,
 
 int main(int argc, char* argv[])
 {
+#if 0
 	//0.create vtkSeedTracts
 	vtkNew<vtkSeedTracts> seed;
 	//1.read nrrd
-	std::string fileName = "W:/scene/myDTI.nrrd";
+	//std::string fileName = "T:/scene/myDTI.nrrd";
+
+	std::string fileName = "C:/Users/Bxd/Desktop/testhead/dti.nrrd";;
 	//ReadNRRD(("W:/scene/myDTI.nrrd"));
 
 	vtkNew<vtkTeemNRRDReader> reader;
@@ -236,16 +243,16 @@ int main(int argc, char* argv[])
 	std::cout << "orgin:(" << orgin[0] << "," << orgin[1] << "," << orgin[2] << ")" << std::endl;
 	std::cout << "dimensions:(" << dim[0] << "," << dim[1] << "," << dim[2] << ")" << std::endl;
 
-	
-    vtkNew<vtkImageChangeInformation> ici;
+
+	vtkNew<vtkImageChangeInformation> ici;
 	//1.9531249999999991,1.9531249999999936,3.5100013269750843
 
-    ici->SetOutputSpacing(sp);
+	ici->SetOutputSpacing(sp);
 	/*double ori[3]{ 0.0,0.0,0.0 };
 	ici->SetOutputOrigin(ori);*/
-    ici->SetInputConnection(reader->GetOutputPort());
-    seed->SetInputTensorFieldConnection(ici->GetOutputPort());
-	
+	ici->SetInputConnection(reader->GetOutputPort());
+	seed->SetInputTensorFieldConnection(ici->GetOutputPort());
+
 
 
 	//2. 设置 seed 需要的各种参数
@@ -261,15 +268,53 @@ int main(int argc, char* argv[])
 	int displayMode = 1;
 
 	CreateTractsForOneSeed(seed, thresholdMode, stoppingValue, stoppingCurvature, integrationStepLength,
-		minPathLength, regionSize, sampleStep, maxNumberOfSeeds, seedSelectedFiducials,sp, mat, ici->GetOutput());
+		minPathLength, regionSize, sampleStep, maxNumberOfSeeds, seedSelectedFiducials, sp, mat, ici->GetOutput());
 
 	std::cout << "hello visualDMRI" << std::endl;
+	return 0;
+#endif 
+
+	vtkSmartPointer<vtkTRKReader> reader = vtkSmartPointer<vtkTRKReader>::New();
+	reader->SetFileName("D:/Test/v3d/zzv3d/AF_left.trk");
+	reader->SetFileName("D:/Test/v3d/zzv3d/AF_left_myTest.trk");
+	reader->Update();
+	
+
+
+	vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
+	//vtkSmartPointer<vtkUnstructuredGridWriter> writer = vtkSmartPointer<vtkUnstructuredGridWriter>::New();
+	//std::string fiberFileName = "T:/scene/fiber_ASCII.vtk";
+	std::string fiberFileName = "D:/Test/v3d/zzv3d/AF_left.vtk";
+	writer->SetFileName(fiberFileName.c_str());
+#if VTK_MAJOR_VERSION >= 9
+	// version 5.1 is not compatible with earlier Slicer versions and most other software
+	writer->SetFileVersion(42);
+#endif
+	writer->SetFileType(VTK_BINARY);
+	//writer->SetFileType(VTK_ASCII);
+
+	writer->SetInputData(reader->GetOutput());
+	//std::string header = std::string("3D Slicer output. ") + coordinateSytemSpecification;
+	//writer->SetHeader(header.c_str());
+	writer->Write();
+	writer->Update();
+
+
+	std::string trkFileName = "D:/Test/v3d/zzv3d/AF_left_myTest_m.trk";
+	vtkSmartPointer<vtkTRKWriter> trkWriter = vtkSmartPointer<vtkTRKWriter>::New();
+	trkWriter->SetFileName(trkFileName.c_str());
+	trkWriter->SetInputData(reader->GetOutput());
+
+	trkWriter->Write();
+	trkWriter->Update();
+
+
 	return 0;
 }
 
 
 void ReadNRRD(std::string fileName) {
-	
+
 	vtkNew<vtkTeemNRRDReader> reader;
 
 	reader->SetUseNativeOriginOn();
@@ -279,15 +324,15 @@ void ReadNRRD(std::string fileName) {
 	// Check if this is a NRRD file that we can read
 	if (!reader->CanReadFile(fileName.c_str()))
 	{
-		std::cout <<("ReadData: This is not a nrrd file");
-		
+		std::cout << ("ReadData: This is not a nrrd file");
+
 		return;
 	}
 
 	reader->UpdateInformation();
 
 	// Check type
-	
+
 	if (!(reader->GetPointDataType() == vtkDataSetAttributes::TENSORS))
 	{
 		std::cout << ("ReadData: MRMLVolumeNode does not match file kind");

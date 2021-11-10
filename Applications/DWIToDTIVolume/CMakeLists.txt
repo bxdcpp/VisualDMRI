@@ -1,16 +1,11 @@
-project(VisualDMRITesting)
-
-#
-#VTK
-#
-#include(${VTK_USE_FILE})
+project(DWIToMaskVolume)
 
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
 )
-message(  ${CMAKE_CURRENT_BINARY_DIR}/Libs/vtkDMRI  ${CMAKE_SOURCE_DIR}/Libs/vtkDMRI )
+
 set(header_files
 )
 
@@ -36,6 +31,8 @@ Set_Target_Properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CO
 target_link_libraries(${PROJECT_NAME}
     vtkTeem
     vtkDMRI
+    ${ITK_LIBRARIES}
+    #${VTK_LIBRARIES}
 )
 
 # --------------------------------------------------------------------------

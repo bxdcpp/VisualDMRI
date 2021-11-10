@@ -1,4 +1,4 @@
-project(VisualDMRITesting)
+project(DMRIDisplay)
 
 #
 #VTK
