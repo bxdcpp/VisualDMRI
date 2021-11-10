@@ -55,6 +55,10 @@ set(vtkDMRI_SRCS
   vtkTractographyPointAndArray.cxx
   vtkTensorMask.cxx
   vtkTensorRotate.cxx
+  vtkTRKWriter.cxx
+  vtkTRKReader.cxx
+  defs.h
+  trkfileio.h
   )
 
 # Helper classes
@@ -101,7 +105,7 @@ target_include_directories(${PROJECT_NAME}
 message(Status ${CMAKE_CURRENT_BINARY_DIR})
 set(libs
   vtkTeem
-  ${Teem_LIBRARIES}
+  #${Teem_LIBRARIES}
   ${VTK_LIBRARIES}
   )
 target_link_libraries(${lib_name} ${libs})
@@ -124,11 +128,16 @@ endif()
 # Folder
 # --------------------------------------------------------------------------
 if(NOT DEFINED ${lib_name}_FOLDER)
-  set(${lib_name}_FOLDER ${lib_name})
+  set(${lib_name}_FOLDER "Libs")
 endif()
 if(NOT "${${lib_name}_FOLDER}" STREQUAL "")
   set_target_properties(${lib_name} PROPERTIES FOLDER ${${lib_name}_FOLDER})
 endif()
+
+
+
+
+
 
 # --------------------------------------------------------------------------
 # Export target
