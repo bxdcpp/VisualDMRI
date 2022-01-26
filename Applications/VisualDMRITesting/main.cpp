@@ -117,7 +117,8 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 
 	//std::array<double, 3> points{ -1.160122164827107,-29.925899726775967,60.27479726775956 };
 	//std::array<double, 3> points{ -12.873638961089242, -31.32079998433062,	73.2644539595872 };
-	std::array<double, 3> points{ -16.11382170952004,-19.05866524362014,44.88020394634446 };
+	//std::array<double, 3> points{ -16.11382170952004,-19.05866524362014,44.88020394634446 };
+	std::array<double, 3> points{ -14.1395,-64.8273,64.8273 };
 
 	//std::array<double, 3> points{ 0.39,30.21,59.68 };
 	std::vector<std::array<double, 3>> sPoints;
@@ -162,6 +163,25 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 
 }
 
+//----------------------------------------------------------------------------
+int CreateTractsForLabelMap(
+	vtkSeedTracts* seed,
+	int ROIlabel,
+	int useIndexSpace,
+	double seedSpacing,
+	int randomGrid,
+	double linearMeasureStart,
+	int thresholdMode,
+	double stoppingValue,
+	double stoppingCurvature,
+	double integrationStepLength,
+	double minPathLength,
+	double maxPathLength, vtkMatrix4x4* RASToIJK, vtkImageData* imgData)
+{
+
+
+}
+
 void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double, 3>>& seedPoint, double regionSize, double sampleStep)
 {
 	//seedPoint 
@@ -190,7 +210,7 @@ void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double,
 
 int main(int argc, char* argv[])
 {
-#if 0
+#if 1
 	//0.create vtkSeedTracts
 	vtkNew<vtkSeedTracts> seed;
 	//1.read nrrd
@@ -274,6 +294,8 @@ int main(int argc, char* argv[])
 	return 0;
 #endif 
 
+#if 0
+
 	vtkSmartPointer<vtkTRKReader> reader = vtkSmartPointer<vtkTRKReader>::New();
 	reader->SetFileName("D:/Test/v3d/zzv3d/AF_left.trk");
 	reader->SetFileName("D:/Test/v3d/zzv3d/AF_left_myTest.trk");
@@ -310,6 +332,7 @@ int main(int argc, char* argv[])
 
 
 	return 0;
+#endif
 }
 
 
