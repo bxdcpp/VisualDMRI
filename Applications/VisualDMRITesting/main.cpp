@@ -1,4 +1,4 @@
-#include "vtkSeedTracts.h"
+ï»¿#include "vtkSeedTracts.h"
 #include "vtkTRKReader.h"
 #include "vtkTRKWriter.h"
 
@@ -22,6 +22,10 @@
 #include <vtkLine.h>
 #include <vtkPolyLine.h>
 #include <vtkDemandDrivenPipeline.h>
+#include <vtkImageCast.h>
+#include <vtkImageThreshold.h>
+#include <vtkMatrix3x3.h>
+#include <vtkMaskPoints.h>
 
 #include <iostream>
 #include <vector>
@@ -29,6 +33,9 @@
 
 void ConvertBetweenRASAndLPS(vtkPointSet* inputMesh, vtkPointSet* outputMesh);
 void ReadNRRD(std::string fileName);
+void ReadNIFTI(std::string fileName, vtkImageData* image);
+void ReadNIFTI_2(std::string fileName, vtkImageData* image);
+void LPS2RAS(vtkSmartPointer<vtkImageData> input, vtkMatrix4x4* lpsToIjkMatrix);
 void seedStreamlineFromPoint(vtkSeedTracts* seed, std::vector<std::array<double, 3>>& seedPoint, double regionSize, double sampleStep);
 void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	double stoppingValue,
@@ -37,9 +44,9 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	double minPathLength,
 	double regionSize, double sampleStep,
 	int maxNumberOfSeeds,
-	int seedSelectedFiducials, double spa[3], vtkMatrix4x4* RASToIJK, vtkImageData* imgData)
+	int seedSelectedFiducials, double spa[3], vtkMatrix4x4* RASToIJK, vtkImageData* imgData,vtkPolyData* mesh = nullptr)
 {
-	// ÉèÖÃ world to tensorIJK
+	// è®¾ç½® world to tensorIJK
 	vtkNew<vtkMatrix4x4> mat;
 	//volumeNode->GetRASToIJKMatrix(mat.GetPointer());
 
@@ -115,15 +122,40 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 
 	inputTensorField->GetPointData()->SetScalars(imgData->GetPointData()->GetScalars());
 
-	//std::array<double, 3> points{ -1.160122164827107,-29.925899726775967,60.27479726775956 };
+	if (mesh == nullptr)
+	{
+		//std::array<double, 3> points{ -1.160122164827107,-29.925899726775967,60.27479726775956 };
 	//std::array<double, 3> points{ -12.873638961089242, -31.32079998433062,	73.2644539595872 };
-	//std::array<double, 3> points{ -16.11382170952004,-19.05866524362014,44.88020394634446 };
-	std::array<double, 3> points{ -14.1395,-64.8273,64.8273 };
+		std::array<double, 3> points{ -16.11382170952004,-19.05866524362014,44.88020394634446 };
+		//std::array<double, 3> points{ -14.1395,-64.8273,64.8273 };
 
-	//std::array<double, 3> points{ 0.39,30.21,59.68 };
-	std::vector<std::array<double, 3>> sPoints;
-	sPoints.push_back(points);
-	seedStreamlineFromPoint(seed, sPoints, regionSize, sampleStep);
+		//std::array<double, 3> points{ 0.39,30.21,59.68 };
+		std::vector<std::array<double, 3>> sPoints;
+		sPoints.push_back(points);
+		seedStreamlineFromPoint(seed, sPoints, regionSize, sampleStep);
+	}
+	else
+	{
+		vtkNew<vtkMaskPoints> maskPoints;
+		maskPoints->SetInputData(mesh);
+		maskPoints->SetRandomMode(1);
+		maskPoints->SetMaximumNumberOfPoints(maxNumberOfSeeds);
+		maskPoints->Update();
+		/*vtkPolyData* mpoly = maskPoints->GetOutput();*/
+		vtkNew<vtkPolyData> mpoly;
+		ConvertBetweenRASAndLPS(maskPoints->GetOutput(), mpoly);
+		int nf = mpoly->GetNumberOfPoints();
+		for (int f = 0; f < nf; f++)
+		{
+			double* xyzf = mpoly->GetPoint(f);
+
+			//double* xyz = transFiducial->TransformDoublePoint(xyzf);
+
+			//Run the thing
+			seed->SeedStreamlineFromPoint(xyzf[0], xyzf[1], xyzf[2]);
+		}
+	}
+	
 
 	//6. Extract PolyData in RAS
 	vtkSmartPointer<vtkPolyData> outFibers = vtkSmartPointer<vtkPolyData>::New();
@@ -152,7 +184,7 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	// version 5.1 is not compatible with earlier Slicer versions and most other software
 	writer->SetFileVersion(42);
 #endif
-	writer->SetFileType( VTK_BINARY);
+	writer->SetFileType(VTK_BINARY);
 	//writer->SetFileType(VTK_ASCII);
 
 	writer->SetInputData(outFibers.GetPointer());
@@ -176,9 +208,174 @@ int CreateTractsForLabelMap(
 	double stoppingCurvature,
 	double integrationStepLength,
 	double minPathLength,
-	double maxPathLength, vtkMatrix4x4* RASToIJK, vtkImageData* imgData)
+	double maxPathLength, vtkMatrix4x4* RASToIJK, vtkImageData* imgData, vtkMatrix4x4* roiRASToIJK, vtkImageData* labelmap)
 {
+	if (imgData == nullptr || labelmap == nullptr)
+		return 0;
 
+	vtkSmartPointer<vtkAlgorithmOutput> ROIConnection;
+	vtkNew<vtkImageCast> imageCast;
+	vtkNew<vtkDiffusionTensorMathematics> math;
+	vtkNew<vtkImageThreshold> th;
+	vtkNew<vtkMatrix4x4> ROIRASToIJK;
+
+	//1.set inout
+	if (labelmap)
+	{
+		// cast roi to short data type
+		imageCast->SetOutputScalarTypeToShort();
+		imageCast->SetInputData(labelmap);
+
+		//Do scale IJK
+		double sp[3];
+		labelmap->GetSpacing(sp);
+		vtkImageChangeInformation* ici = vtkImageChangeInformation::New();
+		ici->SetOutputSpacing(sp);
+		imageCast->Update();
+		ici->SetInputConnection(imageCast->GetOutputPort());
+		ici->Update();
+		ROIConnection = ici->GetOutputPort();
+
+		// Set up the matrix that will take points in ROI
+		// to RAS space.  Code assumes this is world space
+		// since  we have no access to external transforms.
+		// This will only work if no transform is applied to
+		// ROI and tensor volumes.
+		//
+		ROIRASToIJK->DeepCopy(roiRASToIJK);
+	}
+
+	// 2. Set Up matrices
+	// è®¾ç½® world to tensorIJK
+	vtkNew<vtkMatrix4x4> mat;
+	//volumeNode->GetRASToIJKMatrix(mat.GetPointer());
+	double spa[3];
+	imgData->GetSpacing(spa);
+
+	vtkNew<vtkMatrix4x4> tensorRASToIJK;
+	tensorRASToIJK->DeepCopy(RASToIJK);
+
+	vtkNew<vtkTransform> trans;
+	trans->Identity();
+	trans->PreMultiply();
+	trans->SetMatrix(tensorRASToIJK.GetPointer());
+	// Trans from IJK to RAS
+	trans->Inverse();
+	// Take into account spacing to compute Scaled IJK
+	trans->Scale(1 / spa[0], 1 / spa[1], 1 / spa[2]);
+	trans->Inverse();
+	seed->SetWorldToTensorScaledIJK(trans.GetPointer());
+
+
+	vtkNew<vtkMatrix4x4> tensorRASToIJKRotation;
+	tensorRASToIJKRotation->DeepCopy(tensorRASToIJK.GetPointer());
+	// Set Translation to zero
+	for (int i = 0; i < 3; i++)
+	{
+		tensorRASToIJKRotation->SetElement(i, 3, 0);
+	}
+	// Remove scaling in rasToIjk to make a real rotation matrix
+	double col[3];
+	for (int jjj = 0; jjj < 3; jjj++)
+	{
+		for (int iii = 0; iii < 3; iii++)
+		{
+			col[iii] = tensorRASToIJKRotation->GetElement(iii, jjj);
+		}
+		vtkMath::Normalize(col);
+		for (int iii = 0; iii < 3; iii++)
+		{
+			tensorRASToIJKRotation->SetElement(iii, jjj, col[iii]);
+		}
+	}
+	tensorRASToIJKRotation->Invert();
+	seed->SetTensorRotationMatrix(tensorRASToIJKRotation.GetPointer());
+
+	vtkNew<vtkTransform> trans2;
+	trans2->Identity();
+	trans2->PreMultiply();
+
+	// no longer assume this ROI is in tensor space
+	// trans2->SetMatrix(tensorRASToIJK.GetPointer());
+	trans2->SetMatrix(ROIRASToIJK.GetPointer());
+	trans2->Inverse();
+	seed->SetROIToWorld(trans2.GetPointer());
+
+
+	// PENDING: Do merging with input ROI
+
+	seed->SetInputROIConnection(ROIConnection);
+	seed->SetInputROIValue(ROIlabel);
+	seed->UseStartingThresholdOn();
+	seed->SetStartingThreshold(linearMeasureStart);
+
+	if (useIndexSpace)
+	{
+		seed->SetIsotropicSeeding(0);
+	}
+	else
+	{
+		seed->SetIsotropicSeeding(1);
+	}
+
+	seed->SetRandomGrid(randomGrid);
+
+	seed->SetIsotropicSeedingResolution(seedSpacing);
+	seed->SetMinimumPathLength(minPathLength);
+	seed->UseVtkHyperStreamlinePoints();
+	vtkNew<vtkHyperStreamlineDTMRI> streamer;
+	seed->SetVtkHyperStreamlinePointsSettings(streamer.GetPointer());
+
+	streamer->SetThresholdModeToFractionalAnisotropy();
+	streamer->SetStoppingThreshold(stoppingValue);
+	streamer->SetMaximumPropagationDistance(maxPathLength);
+	streamer->SetRadiusOfCurvature(stoppingCurvature);
+	streamer->SetIntegrationStepLength(integrationStepLength);
+
+	// Temp fix to provide a scalar
+// seed->GetInputTensorField()->GetPointData()->SetScalars(math->GetOutput()->GetPointData()->GetScalars());
+
+	// 5. Run the thing
+	seed->SeedStreamlinesInROI();
+
+
+	//6. Extract PolyData in RAS
+	vtkSmartPointer<vtkPolyData> outFibers = vtkSmartPointer<vtkPolyData>::New();
+	seed->TransformStreamlinesToRASAndAppendToPolyData(outFibers.GetPointer());
+	seed->UpdateAllHyperStreamlineSettings();
+
+
+
+	// We explicitly write the coordinate system into the file header.
+	const std::string coordinateSystemTag = "SPACE"; // following NRRD naming convention
+	const std::string coordinateSystemStr = "RAS";
+	// SPACE=RAS format follows Mimics software's convention, saving extra information into the
+	// STL file header: COLOR=rgba,MATERIAL=rgbargbargba
+	// (see details at https://en.wikipedia.org/wiki/STL_(file_format)#Color_in_binary_STL)
+	const std::string coordinateSytemSpecification = coordinateSystemTag + "=" + coordinateSystemStr;
+
+	//vtkSmartPointer<vtkPointSet> meshToWrite = ;
+	//vtkSmartPointer<vtkPLYWriter> writer = vtkSmartPointer<vtkPLYWriter>::New();
+
+	vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
+	//vtkSmartPointer<vtkUnstructuredGridWriter> writer = vtkSmartPointer<vtkUnstructuredGridWriter>::New();
+	//std::string fiberFileName = "T:/scene/fiber_ASCII.vtk";
+	std::string fiberFileName = "C:/Users/Bxd/Desktop/testhead/fiber_label_one.vtk";
+	writer->SetFileName(fiberFileName.c_str());
+#if VTK_MAJOR_VERSION >= 9
+	// version 5.1 is not compatible with earlier Slicer versions and most other software
+	writer->SetFileVersion(42);
+#endif
+	writer->SetFileType(VTK_BINARY);
+	//writer->SetFileType(VTK_ASCII);
+
+	writer->SetInputData(outFibers.GetPointer());
+	std::string header = std::string("3D Slicer output. ") + coordinateSytemSpecification;
+	writer->SetHeader(header.c_str());
+	writer->Write();
+	writer->Update();
+
+	return 1;
 
 }
 
@@ -216,8 +413,15 @@ int main(int argc, char* argv[])
 	//1.read nrrd
 	//std::string fileName = "T:/scene/myDTI.nrrd";
 
-	std::string fileName = "C:/Users/Bxd/Desktop/testhead/dti.nrrd";;
-	//ReadNRRD(("W:/scene/myDTI.nrrd"));
+	std::string fileName = "C:/Users/Bxd/Desktop/testhead/dti.nrrd";
+	//std::string labelFilename = "C:/Users/Bxd/Desktop/testhead/mask.nrrd";
+	std::string labelFilename = "C:/Users/Bxd/Desktop/testhead/Segmentation-seg_1-label.nrrd";
+	std::string labelFilename_niigz = "C:/Users/Bxd/Desktop/testhead/Segmentation-seg_1-label.nii.gz";
+	vtkSmartPointer<vtkImageData> labelmap = vtkSmartPointer<vtkImageData>::New();
+	//ReadNIFTI(labelFilename_niigz, img);
+	ReadNIFTI_2(labelFilename_niigz, labelmap);
+	/*ReadNRRD(labelFilename);
+	return 1;*/
 
 	vtkNew<vtkTeemNRRDReader> reader;
 
@@ -246,6 +450,9 @@ int main(int argc, char* argv[])
 	reader->Update();
 	// set volume attributes
 	vtkMatrix4x4* mat = reader->GetRasToIjkMatrix();
+	vtkNew<vtkMatrix4x4> mat_inver;
+	vtkMatrix4x4::Invert(mat, mat_inver.Get());
+	mat_inver->Print(std::cout);
 	// set measurement frame
 	vtkMatrix4x4* mat2;
 	mat2 = reader->GetMeasurementFrameMatrix();
@@ -271,11 +478,12 @@ int main(int argc, char* argv[])
 	/*double ori[3]{ 0.0,0.0,0.0 };
 	ici->SetOutputOrigin(ori);*/
 	ici->SetInputConnection(reader->GetOutputPort());
+	ici->Update();
 	seed->SetInputTensorFieldConnection(ici->GetOutputPort());
 
 
 
-	//2. ÉèÖÃ seed ÐèÒªµÄ¸÷ÖÖ²ÎÊý
+	//2. è®¾ç½® seed éœ€è¦çš„å„ç§å‚æ•°
 	int  thresholdMode = 0;
 	double stoppingValue = 0.250;
 	double stoppingCurvature = 0.699;
@@ -287,8 +495,86 @@ int main(int argc, char* argv[])
 	int seedSelectedFiducials = 0;
 	int displayMode = 1;
 
-	CreateTractsForOneSeed(seed, thresholdMode, stoppingValue, stoppingCurvature, integrationStepLength,
-		minPathLength, regionSize, sampleStep, maxNumberOfSeeds, seedSelectedFiducials, sp, mat, ici->GetOutput());
+
+	//vtkNew<vtkTeemNRRDReader> labelReader;
+	//labelReader->SetFileName(labelFilename.c_str());
+	//labelReader->SetUseNativeOriginOn();
+	//labelReader->UpdateInformation();
+	//labelReader->Update();
+	/*vtkMatrix4x4* mat1 = labelReader->GetRasToIjkMatrix();
+	mat1->Print(std::cout);*/
+	//vtkMatrix4x4* roiRAS2Ijk = labelReader->GetRasToIjkMatrix();
+	vtkNew<vtkMatrix4x4> roiRAS2Ijk;
+	roiRAS2Ijk->DeepCopy(labelmap->GetPhysicalToIndexMatrix());
+	roiRAS2Ijk->Print(std::cout);
+	vtkNew<vtkImageChangeInformation> ici2;
+	ici2->SetInputData(labelmap);
+	//ici2->SetInputConnection(labelReader->GetOutputPort());
+	ici2->Update();
+	labelmap->DeepCopy(ici2->GetOutput());
+
+	double sp1[3]{ 0 };
+	double orgin1[3]{ 0 };
+	int dim1[3]{ 0 };
+	labelmap->GetSpacing(sp1);
+	labelmap->GetOrigin(orgin1);
+	labelmap->GetDimensions(dim1);
+	std::cout << "spacing1:(" << sp1[0] << "," << sp1[1] << "," << sp1[2] << ")" << std::endl;
+	std::cout << "orgin1:(" << orgin1[0] << "," << orgin1[1] << "," << orgin1[2] << ")" << std::endl;
+	std::cout << "dimensions1:(" << dim1[0] << "," << dim1[1] << "," << dim1[2] << ")" << std::endl;
+
+
+	// ITK image direction are in LPS space
+		// convert from ijkToRas to ijkToLps
+	//vtkMatrix4x4* LPSToRASMatrix = vtkMatrix4x4::New();
+	//LPSToRASMatrix->Identity();
+	//LPSToRASMatrix->SetElement(0, 0, -1);
+	//LPSToRASMatrix->SetElement(1, 1, -1);
+
+	//vtkMatrix4x4* ijkToRASMatrix = vtkMatrix4x4::New();
+	//vtkMatrix4x4::Multiply4x4(ijk2lpsMatrix, LPSToRASMatrix, ijkToRASMatrix);
+
+	if (labelmap)
+	{
+		double range[2];
+		range[0] = -1;
+		range[1] = 1e10;
+		labelmap->GetScalarRange(range);
+
+		//int n = range[1] - range[0];
+		//ä»¥æœ€å¤§çš„å€¼ä¸ºç´¢å¼•å€¼
+		int useIndexSpace = 1;
+		int ROIlabel = range[1];
+		double seedSpacing = 2.0000;
+		int randomGrid = 0;
+		double linearMeasureStart = 0.29999999;
+		int thresholdMode = 0;
+		double stoppingValue = 0.25;
+		double stoppingCurvature = 0.69999999999999996;
+		double integrationStepLength = 0.50000000000000000;
+		double minPathLength = 20.000000000000000;
+		double maxPathLength = 800.00000000000000;
+
+		CreateTractsForLabelMap(seed, ROIlabel, useIndexSpace, seedSpacing, randomGrid, linearMeasureStart, thresholdMode, stoppingValue, stoppingCurvature,
+			integrationStepLength, minPathLength, maxPathLength, mat, ici->GetOutput(), roiRAS2Ijk, labelmap);
+
+	}
+	else
+	{
+		CreateTractsForOneSeed(seed, thresholdMode, stoppingValue, stoppingCurvature, integrationStepLength,
+			minPathLength, regionSize, sampleStep, maxNumberOfSeeds, seedSelectedFiducials, sp, mat, ici->GetOutput());
+	}
+
+
+
+
+
+
+
+
+
+
+
 
 	std::cout << "hello visualDMRI" << std::endl;
 	return 0;
@@ -300,7 +586,7 @@ int main(int argc, char* argv[])
 	reader->SetFileName("D:/Test/v3d/zzv3d/AF_left.trk");
 	reader->SetFileName("D:/Test/v3d/zzv3d/AF_left_myTest.trk");
 	reader->Update();
-	
+
 
 
 	vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
@@ -335,7 +621,7 @@ int main(int argc, char* argv[])
 #endif
 }
 
-
+//----------------------------------------------------------------------------
 void ReadNRRD(std::string fileName) {
 
 	vtkNew<vtkTeemNRRDReader> reader;
@@ -356,15 +642,29 @@ void ReadNRRD(std::string fileName) {
 
 	// Check type
 
-	if (!(reader->GetPointDataType() == vtkDataSetAttributes::TENSORS))
+	/*if (!(reader->GetPointDataType() == vtkDataSetAttributes::TENSORS))
 	{
 		std::cout << ("ReadData: MRMLVolumeNode does not match file kind");
 		return;
-	}
+	}*/
 
 	reader->Update();
 	// set volume attributes
+	std::cout << "----------------------vtkTeemNRRDReader-----------------------------------" << std::endl;
 	vtkMatrix4x4* mat = reader->GetRasToIjkMatrix();
+	std::cout << "-----------ras2ijk-------------" << std::endl;
+	mat->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------ijk2ras-------------" << std::endl;
+	vtkNew<vtkMatrix4x4> ijk2ras;
+	vtkMatrix4x4::Invert(mat, ijk2ras);
+	ijk2ras->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "index2physical" << std::endl;
+	vtkImageData* vtkTeemNrrdImage = reader->GetOutput();
+	vtkMatrix4x4* index2physical = vtkTeemNrrdImage->GetIndexToPhysicalMatrix();
+	index2physical->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "physical2index" << std::endl;
+	vtkMatrix4x4* physical2index = vtkTeemNrrdImage->GetPhysicalToIndexMatrix();
+	physical2index->PrintSelf(std::cout, vtkIndent(4));
 	// set measurement frame
 	vtkMatrix4x4* mat2;
 	mat2 = reader->GetMeasurementFrameMatrix();
@@ -382,8 +682,210 @@ void ReadNRRD(std::string fileName) {
 	std::cout << "orgin:(" << orgin[0] << "," << orgin[1] << "," << orgin[2] << ")" << std::endl;
 	std::cout << "dimensions:(" << dim[0] << "," << dim[1] << "," << dim[2] << ")" << std::endl;
 
+
+
+	vtkNew<vtkNrrdReader> vtkReader;
+	vtkReader->SetFileName(fileName.c_str());
+	vtkReader->Update();
+
+	vtkImageData* image = vtkReader->GetOutput();
+	vtkMatrix4x4* ijk2lps = image->GetIndexToPhysicalMatrix();
+	vtkMatrix4x4* lps2ijk = image->GetPhysicalToIndexMatrix();
+	vtkMatrix3x3* direction = image->GetDirectionMatrix();
+	std::cout << "----------------------vtkNrrdReader-----------------------------------" << std::endl;
+	std::cout << "-----------lps2ijk-------------" << std::endl;
+	lps2ijk->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------ijk2lps-------------" << std::endl;
+	ijk2lps->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------direction-------------" << std::endl;
+	direction->PrintSelf(std::cout, vtkIndent(4));
+
+	image->GetSpacing(sp);
+	image->GetOrigin(orgin);
+	image->GetDimensions(dim);
+	std::cout << "spacing:(" << sp[0] << "," << sp[1] << "," << sp[2] << ")" << std::endl;
+	std::cout << "orgin:(" << orgin[0] << "," << orgin[1] << "," << orgin[2] << ")" << std::endl;
+	std::cout << "dimensions:(" << dim[0] << "," << dim[1] << "," << dim[2] << ")" << std::endl;
+	LPS2RAS(image, lps2ijk);
+
 }
 
+//----------------------------------------------------------------------------
+void ReadNIFTI(std::string fileName, vtkImageData* image) {
+
+	vtkNew<vtkNIFTIImageReader> reader;
+
+
+	reader->SetFileName(fileName.c_str());
+
+	// Check if this is a NIFTI file that we can read
+	if (!reader->CanReadFile(fileName.c_str()))
+	{
+		std::cout << ("ReadData: This is not a nrrd file");
+
+		return;
+	}
+
+	reader->UpdateInformation();
+
+
+	reader->Update();
+
+
+
+	double sp[3]{ 0 };
+	double orgin[3]{ 0 };
+	int dim[3]{ 0 };
+
+	auto imageData = reader->GetOutput();
+
+
+	double aFac = reader->GetQFac();
+	vtkSmartPointer<vtkMatrix4x4> m_SFormMatrix = reader->GetSFormMatrix();//nullptr
+	vtkSmartPointer<vtkMatrix4x4> m_VolumeMatrix = reader->GetQFormMatrix();
+	if (m_VolumeMatrix)
+	{
+		vtkSmartPointer<vtkMatrix4x4> rotateMat = vtkSmartPointer<vtkMatrix4x4>::New();
+		rotateMat->SetElement(0, 0, -1);
+		rotateMat->SetElement(1, 1, -1);
+
+		vtkMatrix4x4::Multiply4x4(rotateMat, m_VolumeMatrix, m_VolumeMatrix);
+
+		imageData->SetOrigin(
+			m_VolumeMatrix->GetElement(0, 3),
+			m_VolumeMatrix->GetElement(1, 3),
+			m_VolumeMatrix->GetElement(2, 3)
+		);
+
+		m_VolumeMatrix->SetElement(0, 3, 0);
+		m_VolumeMatrix->SetElement(1, 3, 0);
+		m_VolumeMatrix->SetElement(2, 3, 0);
+
+		if (aFac < 0)
+		{
+			vtkSmartPointer<vtkMatrix4x4> mirrorMat = vtkSmartPointer<vtkMatrix4x4>::New();
+			mirrorMat->SetElement(1, 1, -1);
+			vtkMatrix4x4::Multiply4x4(mirrorMat, m_VolumeMatrix, m_VolumeMatrix);
+		}
+	}
+
+	image->DeepCopy(imageData);
+
+	vtkMatrix4x4* ijk2lps = image->GetIndexToPhysicalMatrix();
+	vtkMatrix4x4* lps2ijk = image->GetPhysicalToIndexMatrix();
+	vtkMatrix3x3* direction = image->GetDirectionMatrix();
+
+	std::cout << "----------------------vtkNIFTIImageReader-----------------------------------" << std::endl;
+	std::cout << "-----------lps2ijk-------------" << std::endl;
+	lps2ijk->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------ijk2lps-------------" << std::endl;
+	ijk2lps->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------direction-------------" << std::endl;
+	direction->PrintSelf(std::cout, vtkIndent(4));
+
+	image->GetSpacing(sp);
+	image->GetOrigin(orgin);
+	image->GetDimensions(dim);
+	std::cout << "spacing:(" << sp[0] << "," << sp[1] << "," << sp[2] << ")" << std::endl;
+	std::cout << "orgin:(" << orgin[0] << "," << orgin[1] << "," << orgin[2] << ")" << std::endl;
+	std::cout << "dimensions:(" << dim[0] << "," << dim[1] << "," << dim[2] << ")" << std::endl;
+
+}
+
+//----------------------------------------------------------------------------
+void ReadNIFTI_2(std::string fileName, vtkImageData* image) {
+
+	vtkNew<vtkNIFTIImageReader> reader;
+
+
+	reader->SetFileName(fileName.c_str());
+
+	// Check if this is a NIFTI file that we can read
+	if (!reader->CanReadFile(fileName.c_str()))
+	{
+		std::cout << ("ReadData: This is not a nrrd file");
+
+		return;
+	}
+
+	reader->UpdateInformation();
+
+
+	reader->Update();
+
+
+
+	double sp[3]{ 0 };
+	double orgin[3]{ 0 };
+	int dim[3]{ 0 };
+
+	auto imageData = reader->GetOutput();
+
+	imageData->GetSpacing(sp);
+	imageData->GetOrigin(orgin);
+	imageData->GetDimensions(dim);
+
+
+	double aFac = reader->GetQFac();
+	vtkSmartPointer<vtkMatrix4x4> m_VolumeMatrix = reader->GetQFormMatrix();
+	vtkSmartPointer<vtkMatrix4x4> imageM4 = vtkSmartPointer<vtkMatrix4x4>::New();
+	vtkSmartPointer<vtkMatrix3x3> imageM3 = vtkSmartPointer<vtkMatrix3x3>::New();
+	imageM3->Identity();
+
+	if (m_VolumeMatrix)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			for (int j = 0; j < 3; j++)
+			{
+				imageM3->SetElement(i, j, m_VolumeMatrix->GetElement(i, j));
+			}
+
+			//imageM3->SetElement(i, 3, m_VolumeMatrix->GetElement(i, 3));
+		}
+		
+	/*	vtkSmartPointer<vtkMatrix4x4> rotateMat = vtkSmartPointer<vtkMatrix4x4>::New();
+		rotateMat->SetElement(0, 0, -1);
+		rotateMat->SetElement(1, 1, -1);*/
+
+		//vtkMatrix4x4::Multiply4x4(rotateMat, m_VolumeMatrix, m_VolumeMatrix);
+		//imageM3->Print(std::cout);
+
+	/*	if (aFac < 0)
+		{
+			vtkSmartPointer<vtkMatrix4x4> mirrorMat = vtkSmartPointer<vtkMatrix4x4>::New();
+			mirrorMat->SetElement(1, 1, -1);
+			vtkMatrix4x4::Multiply4x4(mirrorMat, m_VolumeMatrix, m_VolumeMatrix);
+		}*/
+	}
+	imageData->SetDirectionMatrix(imageM3);
+	imageData->SetOrigin(
+		m_VolumeMatrix->GetElement(0, 3),
+		m_VolumeMatrix->GetElement(1, 3),
+		m_VolumeMatrix->GetElement(2, 3));
+
+	image->DeepCopy(imageData);
+
+	vtkMatrix4x4* ijk2lps = image->GetIndexToPhysicalMatrix();
+	vtkMatrix4x4* lps2ijk = image->GetPhysicalToIndexMatrix();
+	vtkMatrix3x3* direction = image->GetDirectionMatrix();
+
+	std::cout << "----------------------vtkNIFTIImageReader-----------------------------------" << std::endl;
+	std::cout << "-----------ras2ijk-------------" << std::endl;
+	lps2ijk->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------ijk2ras-------------" << std::endl;
+	ijk2lps->PrintSelf(std::cout, vtkIndent(4));
+	std::cout << "-----------direction-------------" << std::endl;
+	direction->PrintSelf(std::cout, vtkIndent(4));
+
+	image->GetSpacing(sp);
+	image->GetOrigin(orgin);
+	image->GetDimensions(dim);
+	std::cout << "spacing:(" << sp[0] << "," << sp[1] << "," << sp[2] << ")" << std::endl;
+	std::cout << "orgin:(" << orgin[0] << "," << orgin[1] << "," << orgin[2] << ")" << std::endl;
+	std::cout << "dimensions:(" << dim[0] << "," << dim[1] << "," << dim[2] << ")" << std::endl;
+
+}
 
 //----------------------------------------------------------------------------
 void ConvertBetweenRASAndLPS(vtkPointSet* inputMesh, vtkPointSet* outputMesh)
@@ -409,4 +911,99 @@ void ConvertBetweenRASAndLPS(vtkPointSet* inputMesh, vtkPointSet* outputMesh)
 		transformFilter->Update();
 		outputMesh->ShallowCopy(transformFilter->GetOutput());
 	}
+}
+
+//----------------------------------------------------------------------------
+void LPS2RAS(vtkSmartPointer<vtkImageData> input, vtkMatrix4x4* lpsToIjkMatrix)
+{
+	unsigned int Dimension = 3;
+	vtkMatrix4x4* ijkTolpsMatrix = vtkMatrix4x4::New();
+
+	if (lpsToIjkMatrix == nullptr)
+	{
+		std::cerr << "ITKWriteVTKImage: rasToIjkMatrix is null" << std::endl;
+	}
+	else
+	{
+		vtkMatrix4x4::Invert(lpsToIjkMatrix, ijkTolpsMatrix);
+	}
+
+	ijkTolpsMatrix->Transpose();
+
+	double origin[3];
+	double mag[3];
+	int i;
+	for (i = 0; i < 3; i++)
+	{
+		// normalize vectors
+		mag[i] = 0;
+		for (int j = 0; j < 3; j++)
+		{
+			mag[i] += ijkTolpsMatrix->GetElement(i, j) * ijkTolpsMatrix->GetElement(i, j);
+		}
+		if (mag[i] == 0.0)
+		{
+			mag[i] = 1;
+		}
+		mag[i] = sqrt(mag[i]);
+	}
+
+	for (i = 0; i < 3; i++)
+	{
+		int j;
+		for (j = 0; j < 3; j++)
+		{
+			ijkTolpsMatrix->SetElement(i, j, ijkTolpsMatrix->GetElement(i, j) / mag[i]);
+		}
+	}
+
+	// ITK image direction are in LPS space
+	// convert from ijkToRas to ijkToLps
+	vtkMatrix4x4* rasToLpsMatrix = vtkMatrix4x4::New();
+	rasToLpsMatrix->Identity();
+	rasToLpsMatrix->SetElement(0, 0, -1);
+	rasToLpsMatrix->SetElement(1, 1, -1);
+
+	vtkMatrix4x4* ijkToLpsMatrix = vtkMatrix4x4::New();
+	vtkMatrix4x4::Multiply4x4(ijkTolpsMatrix, rasToLpsMatrix, ijkToLpsMatrix);
+
+	vtkSmartPointer<vtkMatrix3x3> direction = vtkSmartPointer<vtkMatrix3x3>::New();
+
+	for (i = 0; i < Dimension; i++)
+	{
+		origin[i] = ijkTolpsMatrix->GetElement(3, i);
+		int j;
+		for (j = 0; j < Dimension; j++)
+		{
+			if (Dimension == 2)
+			{
+				//direction[j][i] = (i == j) ? 1. : 0;
+				direction->SetElement(i, j, (i == j) ? 1. : 0);
+			}
+			else
+			{
+				direction->SetElement(i, j, ijkToLpsMatrix->GetElement(i, j));
+				/*direction[j][i] = ijkToLpsMatrix->GetElement(i, j);*/
+			}
+		}
+	}
+
+	rasToLpsMatrix->Delete();
+	ijkTolpsMatrix->Delete();
+	ijkToLpsMatrix->Delete();
+
+	origin[0] *= -1;
+	origin[1] *= -1;
+
+
+	/*input->SetOrigin(origin);
+	input->SetSpacing(mag);*/
+
+	vtkNew<vtkImageChangeInformation> ici;
+	ici->SetInputData(input);
+	ici->SetOutputSpacing(mag);
+	ici->SetOutputOrigin(origin);
+	ici->Update();
+	input->DeepCopy(ici->GetOutput());
+	//input->SetDirectionMatrix(direction);
 }
