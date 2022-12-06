@@ -26,6 +26,7 @@
 #include <vtkImageThreshold.h>
 #include <vtkMatrix3x3.h>
 #include <vtkMaskPoints.h>
+#include <vtkOBJReader.h>
 
 #include <iostream>
 #include <vector>
@@ -33,6 +34,7 @@
 
 void ConvertBetweenRASAndLPS(vtkPointSet* inputMesh, vtkPointSet* outputMesh);
 void ReadNRRD(std::string fileName);
+void ReadOBJ(std::string fileName, vtkPolyData* polyData);
 void ReadNIFTI(std::string fileName, vtkImageData* image);
 void ReadNIFTI_2(std::string fileName, vtkImageData* image);
 void LPS2RAS(vtkSmartPointer<vtkImageData> input, vtkMatrix4x4* lpsToIjkMatrix);
@@ -178,7 +180,7 @@ void CreateTractsForOneSeed(vtkSeedTracts* seed, int thresholdMode,
 	vtkSmartPointer<vtkPolyDataWriter> writer = vtkSmartPointer<vtkPolyDataWriter>::New();
 	//vtkSmartPointer<vtkUnstructuredGridWriter> writer = vtkSmartPointer<vtkUnstructuredGridWriter>::New();
 	//std::string fiberFileName = "T:/scene/fiber_ASCII.vtk";
-	std::string fiberFileName = "C:/Users/Bxd/Desktop/testhead/fiber_one.vtk";
+	std::string fiberFileName = "C:/Users/Bxd/Desktop/testhead/fiber_one_mesh.vtk";
 	writer->SetFileName(fiberFileName.c_str());
 #if VTK_MAJOR_VERSION >= 9
 	// version 5.1 is not compatible with earlier Slicer versions and most other software
@@ -417,12 +419,21 @@ int main(int argc, char* argv[])
 	//std::string labelFilename = "C:/Users/Bxd/Desktop/testhead/mask.nrrd";
 	std::string labelFilename = "C:/Users/Bxd/Desktop/testhead/Segmentation-seg_1-label.nrrd";
 	std::string labelFilename_niigz = "C:/Users/Bxd/Desktop/testhead/Segmentation-seg_1-label.nii.gz";
-	vtkSmartPointer<vtkImageData> labelmap = vtkSmartPointer<vtkImageData>::New();
+	vtkSmartPointer<vtkImageData> labelmap = nullptr;
+	vtkSmartPointer<vtkPolyData> mesh = nullptr;
+#if 1
+	 labelmap = vtkSmartPointer<vtkImageData>::New();
 	//ReadNIFTI(labelFilename_niigz, img);
-	ReadNIFTI_2(labelFilename_niigz, labelmap);
-	/*ReadNRRD(labelFilename);
-	return 1;*/
-
+	 ReadNIFTI_2(labelFilename_niigz, labelmap);
+	//ReadNRRD(labelFilename);
+	//return 1;
+#endif
+#if 0
+	std::string fileName_Obj = "C:/Users/Bxd/Desktop/testhead/Segmentation.obj";
+	//vtkNew<vtkPolyData> mesh;
+	mesh = vtkSmartPointer<vtkImageData>::New()
+	ReadOBJ(fileName_Obj, mesh);
+#endif
 	vtkNew<vtkTeemNRRDReader> reader;
 
 	reader->SetUseNativeOriginOn();
@@ -504,24 +515,26 @@ int main(int argc, char* argv[])
 	/*vtkMatrix4x4* mat1 = labelReader->GetRasToIjkMatrix();
 	mat1->Print(std::cout);*/
 	//vtkMatrix4x4* roiRAS2Ijk = labelReader->GetRasToIjkMatrix();
+	// 
 	vtkNew<vtkMatrix4x4> roiRAS2Ijk;
 	roiRAS2Ijk->DeepCopy(labelmap->GetPhysicalToIndexMatrix());
 	roiRAS2Ijk->Print(std::cout);
-	vtkNew<vtkImageChangeInformation> ici2;
-	ici2->SetInputData(labelmap);
-	//ici2->SetInputConnection(labelReader->GetOutputPort());
-	ici2->Update();
-	labelmap->DeepCopy(ici2->GetOutput());
+	//vtkNew<vtkImageChangeInformation> ici2;
+	//ici2->SetInputData(labelmap);
+	////ici2->SetInputConnection(labelReader->GetOutputPort());
+	//ici2->Update();
+	//if(labelmap)
+	//	labelmap->DeepCopy(ici2->GetOutput());
 
-	double sp1[3]{ 0 };
-	double orgin1[3]{ 0 };
-	int dim1[3]{ 0 };
-	labelmap->GetSpacing(sp1);
-	labelmap->GetOrigin(orgin1);
-	labelmap->GetDimensions(dim1);
-	std::cout << "spacing1:(" << sp1[0] << "," << sp1[1] << "," << sp1[2] << ")" << std::endl;
-	std::cout << "orgin1:(" << orgin1[0] << "," << orgin1[1] << "," << orgin1[2] << ")" << std::endl;
-	std::cout << "dimensions1:(" << dim1[0] << "," << dim1[1] << "," << dim1[2] << ")" << std::endl;
+	//double sp1[3]{ 0 };
+	//double orgin1[3]{ 0 };
+	//int dim1[3]{ 0 };
+	//labelmap->GetSpacing(sp1);
+	//labelmap->GetOrigin(orgin1);
+	//labelmap->GetDimensions(dim1);
+	//std::cout << "spacing1:(" << sp1[0] << "," << sp1[1] << "," << sp1[2] << ")" << std::endl;
+	//std::cout << "orgin1:(" << orgin1[0] << "," << orgin1[1] << "," << orgin1[2] << ")" << std::endl;
+	//std::cout << "dimensions1:(" << dim1[0] << "," << dim1[1] << "," << dim1[2] << ")" << std::endl;
 
 
 	// ITK image direction are in LPS space
@@ -562,7 +575,7 @@ int main(int argc, char* argv[])
 	else
 	{
 		CreateTractsForOneSeed(seed, thresholdMode, stoppingValue, stoppingCurvature, integrationStepLength,
-			minPathLength, regionSize, sampleStep, maxNumberOfSeeds, seedSelectedFiducials, sp, mat, ici->GetOutput());
+			minPathLength, regionSize, sampleStep, maxNumberOfSeeds, seedSelectedFiducials, sp, mat, ici->GetOutput(), mesh);
 	}
 
 
@@ -793,6 +806,17 @@ void ReadNIFTI(std::string fileName, vtkImageData* image) {
 }
 
 //----------------------------------------------------------------------------
+ void ReadOBJ(std::string fileName,vtkPolyData* polyData) {
+
+	vtkNew<vtkOBJReader> reader;
+
+	reader->SetFileName(fileName.c_str());
+	reader->Update();
+	polyData->DeepCopy(reader->GetOutput());
+
+}
+
+//----------------------------------------------------------------------------
 void ReadNIFTI_2(std::string fileName, vtkImageData* image) {
 
 	vtkNew<vtkNIFTIImageReader> reader;
@@ -953,7 +977,7 @@ void LPS2RAS(vtkSmartPointer<vtkImageData> input, vtkMatrix4x4* lpsToIjkMatrix)
 		int j;
 		for (j = 0; j < 3; j++)
 		{
-			ijkTolpsMatrix->SetElement(i, j, ijkTolpsMatrix->GetElement(i, j) / mag[i]);
+			ijkTolpsMatrix->SetElement(j, i, ijkTolpsMatrix->GetElement(i, j) / mag[i]);
 		}
 	}
 

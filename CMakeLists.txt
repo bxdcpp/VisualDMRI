@@ -27,7 +27,7 @@ include(${ITK_USE_FILE})
 
 set(CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_SOURCE_DIR}/CMake
-  ${Slicer_CMAKE_DIR}
+  #${Slicer_CMAKE_DIR}
   ${CMAKE_MODULE_PATH}
   )
 
@@ -49,6 +49,7 @@ set(VISUAL_APPS
 	DMRIDisplay
 	DWIToDTIVolume
 	DWIToMaskVolume
+	#DWIToDTIALL
 )
 
 

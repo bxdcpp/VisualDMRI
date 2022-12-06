@@ -51,7 +51,7 @@
 //******************************
 int main(int argc, char* argv[])
 {
-#if 1
+#if 0
 	int ix = 0;
 	std::cout << "hello!" << std::endl;
 	vtkSmartPointer<vtkTRKReader> reader1 = vtkSmartPointer<vtkTRKReader>::New();
@@ -80,7 +80,8 @@ int main(int argc, char* argv[])
 #else
 	///0.read file
 	vtkSmartPointer<vtkTRKReader> reader = vtkSmartPointer<vtkTRKReader>::New();
-	const char* fileName = "D:/Test/v3d/zzv3d/AF_left_myTest_m.trk";
+	//const char* fileName = "D:/Test/v3d/zzv3d/AF_left_myTest_m.trk";
+	const char* fileName = "C:\\Users\\Bxd\\Documents\\VisualScenes\\20220105152745\\0zcMvK0nStOQDiu8oZcMig.trk";
 	reader->SetFileName(fileName);
 	reader->Update();
 
@@ -115,8 +116,9 @@ int main(int argc, char* argv[])
 
 	///1 Create a mapper and actor
 	vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-	//mapper->SetInputConnection(colorLinesByOrientation->GetOutputPort());
-	mapper->SetInputConnection(tubeFilter->GetOutputPort());
+	//mapper->SetInputConnection(reader->GetOutputPort());
+	mapper->SetInputConnection(colorLinesByOrientation->GetOutputPort());
+	//mapper->SetInputConnection(tubeFilter->GetOutputPort());
 	//mapper->SetColorModeToMapScalars();
 	mapper->SetScalarRange(0, 255);
 	mapper->SetLookupTable(colorTable);

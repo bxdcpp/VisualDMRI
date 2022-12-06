@@ -37,7 +37,6 @@ bool parse_gradient_key(std::string key, size_t& grad_number, size_t& gradkey_pa
 bool transformsNotEqual(const vtkMatrix4x4* mat1, const vtkMatrix4x4* mat2);
 //--------------------------------------------------------------------------
 
-
 int ParseDiffusionInformation(vtkTeemNRRDReader* reader,vtkDoubleArray* gradients_array,vtkDoubleArray* bvalues_array) 
 
 {
@@ -134,7 +133,6 @@ int ParseDiffusionInformation(vtkTeemNRRDReader* reader,vtkDoubleArray* gradient
     return 1;
 }
 
-
 bool parse_gradient_key(std::string key, size_t& grad_number, size_t& gradkey_pad_width, std::string err)
 {
 	std::stringstream err_stream;
@@ -191,8 +189,6 @@ bool parse_gradient_key(std::string key, size_t& grad_number, size_t& gradkey_pa
 	grad_number += 1;
 	return true;
 }
-
-
 
 
 bool transformsNotEqual(const vtkMatrix4x4* mat1, const vtkMatrix4x4* mat2)

@@ -1,5 +1,8 @@
 project(DWIConvert)
 
+
+
+include(FindITKUtil)
 #-----------------------------------------------------------------------------
 
 # --------------------------------------------------------------------------
@@ -23,9 +26,18 @@ endif()
 # --------------------------------------------------------------------------
 
 #
-#ITK
+# ITK
 #
-#include(${ITK_USE_FILE})
+
+FindITKUtil( DWIConvert_ITK
+  ITKImageIntensity
+  ITKImageStatistics
+  ITKTestKernel
+  ITKIODCMTK
+  ITKIORAW
+  ITKDCMTK
+  ITKNrrdIO
+)
 
 
 # --------------------------------------------------------------------------
@@ -97,7 +109,7 @@ target_include_directories(${PROJECT_NAME}
     )
 
 set(libs
-  ${ITK_LIBRARIES}
+  ${DWIConvert_ITK_LIBRARIES}
   )
 target_link_libraries(${lib_name} ${libs})
 
